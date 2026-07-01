@@ -1,0 +1,21 @@
+{
+  "name": "wine-prices",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "build:watch": "rollup -c --watch"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "express": "^4.21.0",
+    "fast-xml-parser": "^4.5.0",
+    "lit": "^3.2.0",
+    "pg": "^8.13.0",
+    "sharp": "^0.33.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.3.0",
+    "rollup": "^4.20.0"
+  }
+}
