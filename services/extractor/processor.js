@@ -189,6 +189,8 @@ export async function runExtractor(opts = {}) {
     }
   }
 
+  console.log(`Starting extraction of ${pages.length} pages with concurrency=${concurrency}...`);
+
   await Promise.all(Array.from({ length: concurrency }, worker));
 
   return { totalPages, totalEntries };
