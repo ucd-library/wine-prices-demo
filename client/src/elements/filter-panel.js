@@ -1,5 +1,11 @@
 import { LitElement, html, css } from 'lit';
 
+// Extraction occasionally misreads a vintage year (bad OCR), which can pollute
+// the facet min/max with garbage. Clamp the UI to a sane, fixed range instead
+// of trusting the extracted bounds.
+const MIN_VINTAGE_YEAR = 1800;
+const CURRENT_DECADE = Math.floor(new Date().getFullYear() / 10) * 10;
+
 const COLOR_META = {
   red:       { label: 'Red',       bg: '#7a2b40' },
   white:     { label: 'White',     bg: '#5a6b3a' },
@@ -424,17 +430,13 @@ class FilterPanel extends LitElement {
   }
 
   _renderVintage() {
-    const { min: dataMin, max: dataMax } = this.facets?.vintageYear ?? {};
     const { vintageYearMin, vintageYearMax } = this.filters;
     const activeCount = (vintageYearMin != null ? 1 : 0) + (vintageYearMax != null ? 1 : 0);
 
-    // Build decade buttons from data range
+    // Build decade buttons from a fixed range rather than the extracted data
+    // range, since misread years can otherwise produce bogus decades.
     const decades = [];
-    if (dataMin != null && dataMax != null) {
-      const start = Math.floor(dataMin / 10) * 10;
-      const end = Math.floor(dataMax / 10) * 10;
-      for (let d = start; d <= end; d += 10) decades.push(d);
-    }
+    for (let d = MIN_VINTAGE_YEAR; d <= CURRENT_DECADE; d += 10) decades.push(d);
 
     return this._section('vintage', 'Vintage Year', activeCount ? 1 : 0, html`
       ${decades.length > 0 ? html`
@@ -455,7 +457,9 @@ class FilterPanel extends LitElement {
         <input
           type="number"
           class="range-input"
-          placeholder="${dataMin ?? '1900'}"
+          placeholder="${MIN_VINTAGE_YEAR}"
+          min="${MIN_VINTAGE_YEAR}"
+          max="${CURRENT_DECADE + 9}"
           .value=${vintageYearMin != null ? String(vintageYearMin) : ''}
           @change=${this._onYearMin}
         >
@@ -463,7 +467,9 @@ class FilterPanel extends LitElement {
         <input
           type="number"
           class="range-input"
-          placeholder="${dataMax ?? '2000'}"
+          placeholder="${CURRENT_DECADE + 9}"
+          min="${MIN_VINTAGE_YEAR}"
+          max="${CURRENT_DECADE + 9}"
           .value=${vintageYearMax != null ? String(vintageYearMax) : ''}
           @change=${this._onYearMax}
         >
