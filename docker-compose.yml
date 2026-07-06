@@ -19,6 +19,7 @@ services:
   api:
     build: .
     command: node services/api/index.js
+    restart: always
     env_file: .env
     ports:
       - "${PORT:-3000}:3000"

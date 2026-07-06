@@ -273,7 +273,7 @@ export async function generateSql(nlQuery, opts = {}) {
   if (nlQuery?.trim()) {
     const knownRegions = await fetchKnownRegions();
     const prompt = buildPrompt(nlQuery, knownRegions);
-    const response = await sendText(prompt, { model: effectiveModel, temperature: 0.0, maxTokens: 400 });
+    const response = await sendText(prompt, { model: effectiveModel, temperature: 0.0, maxTokens: 1000 });
     const parsed = parseResponse(response);
     llmConditions = parsed.conditions;
     llmParams = parsed.params;

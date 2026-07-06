@@ -103,7 +103,12 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Provide a search query or at least one filter' });
     }
 
-    built = await generateSql(nlQuery ?? '', { model, filters, ...paginateOpts });
+    try {
+      built = await generateSql(nlQuery ?? '', { model, filters, ...paginateOpts });
+    } catch (err) {
+      console.error('SQL generation error:', err.message);
+      return res.status(502).json({ error: 'Could not interpret search query, please rephrase' });
+    }
   }
 
   const { sql, params, countSql, conditions, conditionParams } = built;
