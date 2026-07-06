@@ -1,5 +1,4 @@
 import { sendText } from '../../lib/llm-client.js';
-import { query } from '../../lib/db/index.js';
 import config from '../../config/index.js';
 
 const SELECT = `
@@ -54,39 +53,16 @@ All three tables are joined: items i → pages p → wine_entries we
 Use table alias prefixes: we.<col>, i.<col>
 `.trim();
 
-/** @type {string[]|null} */
-let regionCache = null;
-
-/**
- * Fetch all distinct non-null region values from the database.
- * Result is cached for the lifetime of the process — regions only change
- * when the extractor runs, so a restart is a natural cache invalidation.
- * @returns {Promise<string[]>}
- */
-async function fetchKnownRegions() {
-  if (regionCache) return regionCache;
-  const result = await query(
-    'SELECT DISTINCT region FROM wine_entries WHERE region IS NOT NULL ORDER BY region'
-  );
-  regionCache = result.rows.map((r) => r.region);
-  return regionCache;
-}
-
 /**
  * Build the LLM prompt for WHERE-clause generation.
  * @param {string} nlQuery
- * @param {string[]} knownRegions - All distinct region values in the dataset
  * @returns {string}
  */
-function buildPrompt(nlQuery, knownRegions) {
-  const regionList = knownRegions.length
-    ? `Known regions in this dataset:\n${knownRegions.map((r) => `  - ${r}`).join('\n')}`
-    : '';
-
+function buildPrompt(nlQuery) {
   return `You are a PostgreSQL WHERE-clause generator for a wine catalog search database.
 
 ${SCHEMA_CONTEXT}
-${regionList ? `\n${regionList}\n` : ''}
+
 User query: "${nlQuery}"
 
 Return ONLY a JSON object — no markdown, no explanation:
@@ -110,14 +86,13 @@ Rules:
     "inky purple"            → we.description ILIKE $1,              params: ["%inky purple%"]
     "dark cherry and tobacco"→ we.description ILIKE $1 AND we.description ILIKE $2,
                                params: ["%cherry%", "%tobacco%"]
-- For geographic terms (states, countries, broader wine regions): find every matching region
-  from the known list above and use we.region = ANY($n) with a JSON array as the param value.
-  Only fall back to we.region ILIKE $n if no known regions match the geographic term.
+- For geographic terms (states, countries, broader wine regions): use we.region ILIKE $n
+  or we.country ILIKE $n with % wildcards — do not enumerate specific region names.
 
 Example — "California Cabernet under $15 from the 1980s":
 {
-  "conditions": "we.region = ANY($1) AND we.varietal ILIKE $2 AND we.price < $3 AND we.vintage_year >= $4 AND we.vintage_year <= $5",
-  "params": [["Napa Valley", "Sonoma County", "Paso Robles"], "%Cabernet%", 15, 1980, 1989]
+  "conditions": "we.region ILIKE $1 AND we.varietal ILIKE $2 AND we.price < $3 AND we.vintage_year >= $4 AND we.vintage_year <= $5",
+  "params": ["%California%", "%Cabernet%", 15, 1980, 1989]
 }`;
 }
 
@@ -271,8 +246,7 @@ export async function generateSql(nlQuery, opts = {}) {
   let llmConditions = 'TRUE';
   let llmParams = [];
   if (nlQuery?.trim()) {
-    const knownRegions = await fetchKnownRegions();
-    const prompt = buildPrompt(nlQuery, knownRegions);
+    const prompt = buildPrompt(nlQuery);
     const response = await sendText(prompt, { model: effectiveModel, temperature: 0.0, maxTokens: 1000 });
     const parsed = parseResponse(response);
     llmConditions = parsed.conditions;
