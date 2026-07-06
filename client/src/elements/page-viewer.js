@@ -103,6 +103,12 @@ class PageViewer extends LitElement {
       color: #a89dc7;
       text-align: center;
       word-break: break-all;
+      text-decoration: none;
+    }
+
+    .image-link:hover {
+      color: #e8e4dc;
+      text-decoration: underline;
     }
 
     .entries-panel {
@@ -173,7 +179,7 @@ class PageViewer extends LitElement {
 
         <div class="image-panel">
           <img src=${imgUrl} alt="Catalog page ${page.pageNumber}">
-          <div class="image-link">${page.filename}</div>
+          <a class="image-link" href=${imgUrl} target="_blank" rel="noopener">${page.filename}</a>
         </div>
 
         <div class="entries-panel">
