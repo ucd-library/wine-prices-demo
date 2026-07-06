@@ -58,7 +58,7 @@ const config = {
   },
   concurrency: {
     crawl: parseInt(optional('CRAWL_CONCURRENCY', '3'), 10),
-    extract: parseInt(optional('EXTRACT_CONCURRENCY', '2'), 10),
+    extract: parseInt(optional('EXTRACT_CONCURRENCY', '6'), 10),
   },
   api: {
     port: parseInt(optional('PORT', '3000'), 10),

@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "rollup -c",
-    "build:watch": "rollup -c --watch"
+    "build": "rollup -c && npm run copy:html",
+    "build:watch": "rollup -c --watch",
+    "copy:html": "mkdir -p client/dist && cp client/public/index.html client/dist/index.html"
   },
   "dependencies": {
     "commander": "^12.1.0",

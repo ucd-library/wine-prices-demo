@@ -89,9 +89,15 @@ async function resizeAndEncode(source) {
  */
 async function getImageBase64(page) {
   if (page.image_path) return resizeAndEncode(page.image_path);
-  const res = await fetch(page.image_url);
-  if (!res.ok) throw new Error(`Image fetch failed: ${res.status} ${page.image_url}`);
-  return resizeAndEncode(Buffer.from(await res.arrayBuffer()));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(page.image_url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Image fetch failed: ${res.status} ${page.image_url}`);
+    return resizeAndEncode(Buffer.from(await res.arrayBuffer()));
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -101,12 +107,16 @@ async function getImageBase64(page) {
  */
 async function fetchOcrText(page) {
   if (!page.text_url) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
   try {
-    const res = await fetch(page.text_url);
+    const res = await fetch(page.text_url, { signal: controller.signal });
     if (!res.ok) return null;
     return res.text();
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -118,16 +128,19 @@ async function fetchOcrText(page) {
  * @param {object} [opts]
  * @param {string} [opts.model] - Override LLM model for this call
  * @param {function} [opts.onChunk] - (tokenCount: number) => void
+ * @param {function} [opts.onStatus] - (stage: string) => void
  * @returns {Promise<{entriesFound: number}>}
  */
 export async function processPage(page, opts = {}) {
-  const { model, onChunk } = opts;
+  const { model, onChunk, onStatus } = opts;
 
+  onStatus?.('image');
   const [base64Image, ocrText] = await Promise.all([
     getImageBase64(page),
     fetchOcrText(page),
   ]);
 
+  onStatus?.('llm');
   const prompt = buildExtractionPrompt({ ocrText });
   const responseText = await sendVision(base64Image, 'image/jpeg', prompt, {
     maxTokens: 16384,
@@ -164,12 +177,14 @@ export async function runExtractor(opts = {}) {
    * Worker: continuously pulls the next page from the shared queue until empty.
    * As soon as one page finishes, this worker immediately starts the next —
    * no waiting for sibling workers to catch up.
+   * @param {number} id - Worker index for logging
    */
-  async function worker() {
+  async function worker(id) {
     while (queue.length) {
       const page = queue.shift();
-      const label = `[page ${page.id}] ${page.filename}`;
+      const label = `[w${id}][page ${page.id}] ${page.filename}`;
 
+      area.update(page.id, `${label}  starting…`);
       if (!process.stdout.isTTY) {
         process.stdout.write(`${label}  processing...\n`);
       }
@@ -191,7 +206,7 @@ export async function runExtractor(opts = {}) {
 
   console.log(`Starting extraction of ${pages.length} pages with concurrency=${concurrency}...`);
 
-  await Promise.all(Array.from({ length: concurrency }, worker));
+  await Promise.all(Array.from({ length: concurrency }, (_, i) => worker(i)));
 
   return { totalPages, totalEntries };
 }
