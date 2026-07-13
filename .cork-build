@@ -1,5 +1,5 @@
 {
-  "registry" : "us-docker.pkg.dev/pgfarm-419213/containers",
+  "registry" : "us-west1-docker.pkg.dev/ucdlib-dams/pub",
 
   "images" : {
     "wine-prices-app" : {
