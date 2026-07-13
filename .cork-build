@@ -3,8 +3,7 @@
 
   "images" : {
     "wine-prices-app" : {
-      "contextPath" : ".",
-      "dockerfile" : "services/Dockerfile"
+      "contextPath" : "."
     }
   }
 }
