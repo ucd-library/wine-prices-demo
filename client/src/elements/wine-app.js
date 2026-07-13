@@ -3,6 +3,7 @@ import './search-bar.js';
 import './results-list.js';
 import './page-viewer.js';
 import './filter-panel.js';
+import './price-history-modal.js';
 
 const EMPTY_FILTERS = {
   colors: [],
@@ -27,6 +28,7 @@ class WineApp extends LitElement {
     _loading:      { state: true },
     _error:        { state: true },
     _selectedPage: { state: true },
+    _historyWine:  { state: true },
     _facets:       { state: true },
     _filters:      { state: true },
     _searched:     { state: true },
@@ -203,6 +205,7 @@ class WineApp extends LitElement {
     this._loading = false;
     this._error = '';
     this._selectedPage = null;
+    this._historyWine = null;
     this._facets = null;
     this._filters = { ...EMPTY_FILTERS };
     this._currentQuery = '';
@@ -212,6 +215,7 @@ class WineApp extends LitElement {
     this._total = 0;
     this._cachedConditions = null;
     this._cachedConditionParams = null;
+    this._searchSeq = 0;
   }
 
   connectedCallback() {
@@ -237,9 +241,11 @@ class WineApp extends LitElement {
 
   async _doSearch() {
     if (!this._currentQuery.trim() && !this._hasActiveFilters()) {
+      this._searchSeq++; // invalidate any in-flight search
       this._results = [];
       this._sql = '';
       this._searched = false;
+      this._loading = false;
       this._cachedConditions = null;
       this._cachedConditionParams = null;
       return;
@@ -249,6 +255,9 @@ class WineApp extends LitElement {
     this._error = '';
     this._searched = true;
     this._page = 1;
+
+    // Live typing can overlap requests — only the latest one may apply
+    const seq = ++this._searchSeq;
 
     try {
       const res = await fetch('/api/search', {
@@ -261,6 +270,7 @@ class WineApp extends LitElement {
         }),
       });
       const data = await res.json();
+      if (seq !== this._searchSeq) return;
       if (!res.ok) throw new Error(data.error ?? 'Search failed');
       this._results = data.results ?? [];
       this._sql = data.sql ?? '';
@@ -270,14 +280,14 @@ class WineApp extends LitElement {
       this._cachedConditions = data.conditions ?? null;
       this._cachedConditionParams = data.conditionParams ?? null;
     } catch (err) {
-      this._error = err.message;
+      if (seq === this._searchSeq) this._error = err.message;
     } finally {
-      this._loading = false;
+      if (seq === this._searchSeq) this._loading = false;
     }
   }
 
   /**
-   * Navigate to a different page using cached conditions — no LLM call.
+   * Navigate to a different page using cached conditions — no new query build.
    * @param {number} newPage
    */
   async _changePage(newPage) {
@@ -330,7 +340,18 @@ class WineApp extends LitElement {
   }
 
   _handleViewerClose() {
+    // Escape with the price history modal stacked on top should only close the modal
+    if (this._historyWine) return;
     this._selectedPage = null;
+  }
+
+  /** @param {CustomEvent} e */
+  _handlePriceHistory(e) {
+    this._historyWine = e.detail;
+  }
+
+  _handleHistoryClose() {
+    this._historyWine = null;
   }
 
   /**
@@ -389,6 +410,7 @@ class WineApp extends LitElement {
           .results=${this._results}
           .total=${this._total}
           @page-select=${this._handlePageSelect}
+          @price-history=${this._handlePriceHistory}
         ></results-list>
         ${this._renderPagination()}
       `;
@@ -401,7 +423,7 @@ class WineApp extends LitElement {
       return html`
         <div class="empty-state">
           <div class="empty-heading">Search wine history</div>
-          <p>Try "California Cabernet under $15 from the 1980s" or use the filters to browse by color, region, and vintage.</p>
+          <p>Try "Napa Cabernet" or "Chablis" — words match wine names, producers, regions, and tasting notes. Use the filters to narrow by color, vintage, and price.</p>
           ${stats ? html`
             <div class="db-stats">
               <div class="db-stat">
@@ -453,7 +475,15 @@ class WineApp extends LitElement {
         ? html`<page-viewer
             .pageData=${this._selectedPage}
             @viewer-close=${this._handleViewerClose}
+            @price-history=${this._handlePriceHistory}
           ></page-viewer>`
+        : ''}
+
+      ${this._historyWine
+        ? html`<price-history-modal
+            .wine=${this._historyWine}
+            @modal-close=${this._handleHistoryClose}
+          ></price-history-modal>`
         : ''}
     `;
   }

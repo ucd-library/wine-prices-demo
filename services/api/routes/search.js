@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../../../lib/db/index.js';
 import { generateSql, buildPaginatedSql } from '../sql-gen.js';
+import config from '../../../config/index.js';
 
 const router = Router();
 
@@ -107,7 +108,10 @@ router.post('/', async (req, res) => {
       built = await generateSql(nlQuery ?? '', { model, filters, ...paginateOpts });
     } catch (err) {
       console.error('SQL generation error:', err.message);
-      return res.status(502).json({ error: 'Could not interpret search query, please rephrase' });
+      const message = config.search.mode === 'llm'
+        ? 'Could not interpret search query, please rephrase'
+        : 'Search failed';
+      return res.status(502).json({ error: message });
     }
   }
 

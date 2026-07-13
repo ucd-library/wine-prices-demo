@@ -3,9 +3,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import config from '../../config/index.js';
+import { imageExists, getImageStream } from '../../lib/image-store.js';
 import searchRouter from './routes/search.js';
 import itemsRouter from './routes/items.js';
 import facetsRouter from './routes/facets.js';
+import priceHistoryRouter from './routes/price-history.js';
 
 const app = express();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,22 +20,31 @@ app.use(express.json({ limit: '1mb' }));
 app.use('/api/search', searchRouter);
 app.use('/api/items', itemsRouter);
 app.use('/api/facets', facetsRouter);
+app.use('/api/price-history', priceHistoryRouter);
 
 /**
- * Serve locally cached catalog page images from the image volume.
+ * Serve catalog page images from the configured backend — a GCS bucket when
+ * GCS_BUCKET is set, otherwise the local image volume.
  * Path: /api/images/:shortArk/:filename
  */
-app.get('/api/images/:shortArk/:filename', (req, res) => {
+app.get('/api/images/:shortArk/:filename', async (req, res) => {
   const { shortArk, filename } = req.params;
   // Reject path traversal attempts
   if (!/^\w+$/.test(shortArk) || !/^[\w.-]+$/.test(filename)) {
     return res.status(400).send('Bad request');
   }
-  const filePath = path.join(config.storage.imageDir, shortArk, filename);
-  if (!fs.existsSync(filePath)) {
+  const subpath = `${shortArk}/${filename}`;
+  if (!(await imageExists(subpath))) {
     return res.status(404).send('Image not found');
   }
-  res.sendFile(filePath);
+  res.type(path.extname(filename) || 'application/octet-stream');
+  getImageStream(subpath)
+    .on('error', (err) => {
+      console.error(`image read failed ${subpath}: ${err.message}`);
+      if (!res.headersSent) res.status(500).send('Image read failed');
+      else res.end();
+    })
+    .pipe(res);
 });
 
 // Static client bundle

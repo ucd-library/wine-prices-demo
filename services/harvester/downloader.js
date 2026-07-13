@@ -35,11 +35,12 @@ export async function downloadItemImages(ark, opts = {}) {
     await Promise.all(
       batch.map(async (page) => {
         const dest = path.join(dir, page.filename);
+        const subpath = path.join(shortId, page.filename);
         try {
           // Already on disk — just ensure DB is up to date
           try {
             await fs.access(dest);
-            if (!page.image_path) await pagesModel.setImagePath(page.id, dest);
+            if (!page.image_path) await pagesModel.setImagePath(page.id, subpath);
             skipped++;
             return;
           } catch {}
@@ -47,7 +48,7 @@ export async function downloadItemImages(ark, opts = {}) {
           const res = await fetch(page.image_url);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           await fs.writeFile(dest, Buffer.from(await res.arrayBuffer()));
-          await pagesModel.setImagePath(page.id, dest);
+          await pagesModel.setImagePath(page.id, subpath);
           downloaded++;
         } catch (err) {
           console.error(`  failed ${page.filename}: ${err.message}`);

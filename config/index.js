@@ -55,6 +55,12 @@ const config = {
   },
   storage: {
     imageDir: optional('IMAGE_DIR', '/data/images'),
+    gcsBucket: optional('GCS_BUCKET', ''),
+  },
+  search: {
+    // 'simple' — ILIKE text search over wine_entries.search_text
+    // 'llm'    — natural-language WHERE-clause generation via Samwise
+    mode: optional('SEARCH_MODE', 'simple'),
   },
   concurrency: {
     crawl: parseInt(optional('CRAWL_CONCURRENCY', '3'), 10),

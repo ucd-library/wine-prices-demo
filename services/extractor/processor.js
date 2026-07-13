@@ -2,6 +2,7 @@ import sharp from 'sharp';
 import * as pagesModel from '../../lib/db/models/pages.js';
 import * as wineEntriesModel from '../../lib/db/models/wine-entries.js';
 import { sendVision } from '../../lib/llm-client.js';
+import { getImageBuffer, toSubpath } from '../../lib/image-store.js';
 import { buildExtractionPrompt, parseExtractionResponse } from './prompt.js';
 import config from '../../config/index.js';
 
@@ -83,12 +84,13 @@ async function resizeAndEncode(source) {
 }
 
 /**
- * Get the base64 image for a page — from local disk if available, otherwise fetched from LDP.
+ * Get the base64 image for a page — from the image store (GCS or local disk)
+ * if available, otherwise fetched from LDP.
  * @param {object} page - Page row from DB
  * @returns {Promise<string>} Base64-encoded JPEG
  */
 async function getImageBase64(page) {
-  if (page.image_path) return resizeAndEncode(page.image_path);
+  if (page.image_path) return resizeAndEncode(await getImageBuffer(toSubpath(page.image_path)));
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
   try {

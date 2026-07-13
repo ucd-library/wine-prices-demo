@@ -138,6 +138,33 @@ function parseResponse(text) {
   return { conditions: parsed.conditions, params: parsed.params };
 }
 
+// Cap search terms so a pasted paragraph doesn't explode into dozens of ILIKEs.
+const MAX_SEARCH_WORDS = 8;
+
+/**
+ * Build WHERE conditions for the simple text search. The query is split on
+ * whitespace and every word must ILIKE-match wine_entries.search_text — the
+ * trigram-indexed concatenation of name, producer, vineyard, description,
+ * varietal, region, appellation, and country. So words are ANDed together
+ * while each word matches any of those fields.
+ * @param {string} nlQuery
+ * @param {number} paramOffset - Next available $n index (1-based)
+ * @returns {{ conditions: string[], params: Array }}
+ */
+function buildTextConditions(nlQuery, paramOffset) {
+  const words = nlQuery.trim().split(/\s+/).filter(Boolean).slice(0, MAX_SEARCH_WORDS);
+  const conditions = [];
+  const params = [];
+  let i = paramOffset;
+
+  for (const word of words) {
+    conditions.push(`we.search_text ILIKE $${i++}`);
+    params.push(`%${word.replace(/[\\%_]/g, '\\$&')}%`);
+  }
+
+  return { conditions, params };
+}
+
 /**
  * Build hard WHERE conditions from UI-selected filters.
  * Param placeholders start at paramOffset to avoid collision with LLM params.
@@ -228,11 +255,13 @@ export function buildPaginatedSql(conditions, conditionParams, opts = {}) {
 }
 
 /**
- * Convert a natural-language query and/or UI filters into a safe paginated SQL SELECT.
- * Either nlQuery or filters (or both) must be provided.
+ * Convert a text query and/or UI filters into a safe paginated SQL SELECT.
+ * Either nlQuery or filters (or both) must be provided. The query is handled
+ * per SEARCH_MODE: 'simple' (default) builds trigram ILIKE conditions;
+ * 'llm' generates a WHERE clause via Samwise.
  * @param {string} nlQuery - May be empty if filters are provided
  * @param {object} [opts]
- * @param {string} [opts.model]
+ * @param {string} [opts.model] - LLM override (llm mode only)
  * @param {object} [opts.filters={}]
  * @param {number} [opts.page=1]
  * @param {number} [opts.pageSize=20]
@@ -240,25 +269,29 @@ export function buildPaginatedSql(conditions, conditionParams, opts = {}) {
  */
 export async function generateSql(nlQuery, opts = {}) {
   const { model, filters = {} } = opts;
-  const effectiveModel = model || config.samwise.searchModel || undefined;
 
-  // LLM conditions — skip if no natural-language query
-  let llmConditions = 'TRUE';
-  let llmParams = [];
+  // Text query conditions — skip if no query
+  let queryConditions = [];
+  let queryParams = [];
   if (nlQuery?.trim()) {
-    const prompt = buildPrompt(nlQuery);
-    const response = await sendText(prompt, { model: effectiveModel, temperature: 0.0, maxTokens: 1000 });
-    const parsed = parseResponse(response);
-    llmConditions = parsed.conditions;
-    llmParams = parsed.params;
+    if (config.search.mode === 'llm') {
+      const effectiveModel = model || config.samwise.searchModel || undefined;
+      const prompt = buildPrompt(nlQuery);
+      const response = await sendText(prompt, { model: effectiveModel, temperature: 0.0, maxTokens: 1000 });
+      const parsed = parseResponse(response);
+      queryConditions = [parsed.conditions];
+      queryParams = parsed.params;
+    } else {
+      ({ conditions: queryConditions, params: queryParams } = buildTextConditions(nlQuery, 1));
+    }
   }
 
   // Filter conditions built deterministically from UI selections
   const { conditions: filterConds, params: filterParams } =
-    buildFilterConditions(filters, llmParams.length + 1);
+    buildFilterConditions(filters, queryParams.length + 1);
 
-  const allConditions = [llmConditions, ...filterConds].join(' AND ');
-  const allParams = [...llmParams, ...filterParams];
+  const allConditions = [...queryConditions, ...filterConds].join(' AND ') || 'TRUE';
+  const allParams = [...queryParams, ...filterParams];
 
   return buildPaginatedSql(allConditions, allParams, opts);
 }

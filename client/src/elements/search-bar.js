@@ -1,10 +1,16 @@
 import { LitElement, html, css } from 'lit';
 
+// Delay after the last keystroke before a live search fires.
+const SEARCH_DEBOUNCE_MS = 400;
+
 /**
- * Natural-language search input. Fires a `wine-search` event on submit.
- * Shows the generated SQL in a collapsible panel — the key demo moment.
+ * Text search input. Every word in the query is matched against the wine's
+ * name, producer, vineyard, description, varietal, region, appellation, and
+ * country — combined with the sidebar filters. Fires `wine-search` live as
+ * the user types (debounced) and immediately on Enter/submit.
+ * Shows the generated SQL in a collapsible panel.
  *
- * @fires wine-search - detail: { query: string, model?: string }
+ * @fires wine-search - detail: { query: string }
  * @prop {boolean} loading
  * @prop {string} sql - Generated SQL to display
  * @prop {Array} params - Query parameter values to interpolate into SQL display
@@ -124,6 +130,12 @@ class SearchBar extends LitElement {
     this.error = '';
     this._sqlOpen = false;
     this._query = '';
+    this._debounceTimer = null;
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    clearTimeout(this._debounceTimer);
   }
 
   /**
@@ -146,19 +158,25 @@ class SearchBar extends LitElement {
     });
   }
 
-  /** @param {SubmitEvent} e */
-  _submit(e) {
-    e.preventDefault();
-    if (this.loading) return;
+  _fireSearch() {
+    clearTimeout(this._debounceTimer);
     this.dispatchEvent(new CustomEvent('wine-search', {
       detail: { query: this._query.trim() },
       bubbles: true, composed: true,
     }));
   }
 
+  /** @param {SubmitEvent} e */
+  _submit(e) {
+    e.preventDefault();
+    this._fireSearch();
+  }
+
   /** @param {InputEvent} e */
   _onInput(e) {
     this._query = e.target.value;
+    clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => this._fireSearch(), SEARCH_DEBOUNCE_MS);
   }
 
   render() {
@@ -167,13 +185,12 @@ class SearchBar extends LitElement {
         <div class="search-wrap">
           <input
             type="text"
-            placeholder="e.g. California Cabernet under $15 from the 1980s"
+            placeholder="Search by name, producer, region, or tasting notes…"
             .value=${this._query}
             @input=${this._onInput}
-            ?disabled=${this.loading}
             autocomplete="off"
           >
-          <button type="submit" ?disabled=${this.loading}>
+          <button type="submit">
             ${this.loading ? 'Searching…' : 'Search'}
           </button>
         </div>

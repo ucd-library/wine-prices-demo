@@ -12,7 +12,9 @@ const COLOR_CHIP = {
 /**
  * Single extracted wine entry. Shows a compact summary row, with
  * expanded detail when the `expanded` attribute is set.
+ * Fires `price-history` when the price history button is clicked.
  *
+ * @fires price-history - detail: { wineName, producer }
  * @prop {object} entry - wine_entries row
  * @prop {boolean} expanded - Show all fields instead of summary
  */
@@ -103,6 +105,24 @@ class WineEntryRow extends LitElement {
     .confidence-high   { color: #6aac72; }
     .confidence-medium { color: #c4973a; }
     .confidence-low    { color: #ef7da4; }
+
+    .history-btn {
+      background: none;
+      border: 1px solid #2d2b40;
+      border-radius: 20px;
+      color: #a89dc7;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 0.15rem 0.55rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s;
+    }
+
+    .history-btn:hover { border-color: #9b3a54; color: #e8e4dc; }
   `;
 
   constructor() {
@@ -119,6 +139,16 @@ class WineEntryRow extends LitElement {
   _fmt(price) {
     if (price == null) return '';
     return `$${parseFloat(price).toFixed(2)}`;
+  }
+
+  /**
+   * Request the price history view for this entry's wine.
+   */
+  _openHistory() {
+    this.dispatchEvent(new CustomEvent('price-history', {
+      detail: { wineName: this.entry.wineName, producer: this.entry.producer ?? null },
+      bubbles: true, composed: true,
+    }));
   }
 
   /**
@@ -153,6 +183,10 @@ class WineEntryRow extends LitElement {
           <div class="wine-name">${e.wineName ?? '(unnamed)'}</div>
           ${e.color ? html`<span class="chip color-chip" style="--chip-bg:${chipColor}">${e.color}</span>` : ''}
           ${e.vintageYear ? html`<span class="chip">${e.vintageYear}</span>` : ''}
+          ${e.wineName ? html`
+            <button class="history-btn" @click=${this._openHistory} title="Graph prices for this wine over time">
+              Price history
+            </button>` : ''}
           ${e.price != null ? html`<div class="price">${this._fmt(e.price)}</div>` : ''}
         </div>
 

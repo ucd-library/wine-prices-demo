@@ -104,14 +104,20 @@ All configuration is via environment variables (loaded from `.env` if present).
 | `DATABASE_URL` | — | **Required.** Postgres connection string |
 | `LDP_HOST` | `https://digital.ucdavis.edu` | Base URL of the LDP/digital collections server |
 | `COLLECTION_ARK` | `ark:/13030/c8pc37z3` | ARK of the wine catalog collection |
+| `SEARCH_MODE` | `simple` | `simple` — every search word ILIKE-matches the trigram-indexed `search_text` column (name, producer, vineyard, description, varietal, region, appellation, country). `llm` — natural-language WHERE-clause generation via Samwise |
 | `IMAGE_DIR` | `/data/images` | Local path for cached page images |
+| `GCS_BUCKET` | _(empty)_ | If set, page images are read from this GCS bucket instead of `IMAGE_DIR`; object paths match `pages.image_path` (`<shortArk>/<filename>`). Auth via application default credentials |
 | `CRAWL_CONCURRENCY` | `3` | Parallel requests during harvesting |
 | `EXTRACT_CONCURRENCY` | `2` | Parallel LLM calls during extraction |
 | `PORT` | `3000` | API server port |
 
 ## Database
 
-Schema is auto-applied from `schema/init.sql` on first container start.
+Schema is auto-applied from `schema/init.sql` on first container start. Databases created before a schema change need the migrations in `schema/migrations/` applied manually:
+
+```bash
+docker compose exec -T db psql -U wine -d wine_prices < schema/migrations/001-search-text.sql
+```
 
 Three tables: `items` → `pages` → `wine_entries`. Each wine entry records name, producer, vineyard, vintage year, color, varietal, region, appellation, country, price, case price, bottle size, rating, importer, description, and an LLM confidence level (high / medium / low).
 

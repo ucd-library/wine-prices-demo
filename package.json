@@ -8,6 +8,8 @@
     "copy:html": "mkdir -p client/dist && cp client/public/index.html client/dist/index.html"
   },
   "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
+    "chart.js": "^4.5.1",
     "commander": "^12.1.0",
     "express": "^4.21.0",
     "fast-xml-parser": "^4.5.0",

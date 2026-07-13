@@ -1,0 +1,10 @@
+{
+  "registry" : "us-docker.pkg.dev/pgfarm-419213/containers",
+
+  "images" : {
+    "wine-prices-app" : {
+      "contextPath" : ".",
+      "dockerfile" : "services/Dockerfile"
+    }
+  }
+}

@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE IF NOT EXISTS items (
   id           SERIAL PRIMARY KEY,
   ark          TEXT UNIQUE NOT NULL,
@@ -51,7 +53,15 @@ CREATE TABLE IF NOT EXISTS wine_entries (
   description  TEXT,
   currency     TEXT DEFAULT 'USD',
   confidence   TEXT,
-  created_at   TIMESTAMPTZ DEFAULT NOW()
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  -- Concatenated text fields for simple search (one trigram-indexed ILIKE
+  -- per search word instead of an OR across every column)
+  search_text  TEXT GENERATED ALWAYS AS (
+    COALESCE(wine_name,'')   || ' ' || COALESCE(producer,'')    || ' ' ||
+    COALESCE(vineyard,'')    || ' ' || COALESCE(description,'') || ' ' ||
+    COALESCE(varietal,'')    || ' ' || COALESCE(region,'')      || ' ' ||
+    COALESCE(appellation,'') || ' ' || COALESCE(country,'')
+  ) STORED
 );
 
 CREATE INDEX IF NOT EXISTS wine_entries_item_id_idx     ON wine_entries (item_id);
@@ -62,3 +72,4 @@ CREATE INDEX IF NOT EXISTS wine_entries_region_idx      ON wine_entries (region)
 CREATE INDEX IF NOT EXISTS wine_entries_price_idx       ON wine_entries (price);
 CREATE INDEX IF NOT EXISTS wine_entries_varietal_idx    ON wine_entries (varietal);
 CREATE INDEX IF NOT EXISTS wine_entries_country_idx     ON wine_entries (country);
+CREATE INDEX IF NOT EXISTS wine_entries_search_trgm_idx ON wine_entries USING gin (search_text gin_trgm_ops);
