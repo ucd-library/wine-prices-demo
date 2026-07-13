@@ -45,7 +45,9 @@ const config = {
     collectionArk: optional('COLLECTION_ARK', 'ark:/13030/c8pc37z3'),
   },
   samwise: {
-    baseUrl: required('SAMWISE_BASE_URL'),
+    // Optional so LLM-free deployments (SEARCH_MODE=simple API) can run
+    // without a vLLM endpoint; llm-client throws if used while unset
+    baseUrl: optional('SAMWISE_BASE_URL', ''),
     model: optional('SAMWISE_MODEL', 'qwen3.6-fast:35b'),
     searchModel: optional('SAMWISE_SEARCH_MODEL', ''),
     apiKey: optional('SAMWISE_API_KEY', ''),

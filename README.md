@@ -151,6 +151,29 @@ docker compose up -d --build api
 node tools/diagnose-item.js <ark-or-short-id>
 ```
 
+## Cloud Run Deployment
+
+Scripts live in `devops/`; all settings (project, region, service sizing, and
+the service's environment variables) are in `devops/config.sh`.
+
+```bash
+# Build the image with Cloud Build and push to Artifact Registry
+./devops/build.sh
+
+# Deploy to Cloud Run (us-west1); prints the service URL
+./devops/deploy.sh
+
+# Pin a tag through both steps
+TAG=v2 ./devops/build.sh && TAG=v2 ./devops/deploy.sh
+```
+
+The deployed service runs the API only (`SEARCH_MODE=simple`, no LLM needed),
+reads the database from PGFarm with the readonly `pgfarm-public` user, and
+serves page images from the GCS bucket named in `GCS_BUCKET`. The PGFarm
+database must have `schema/migrations/001-search-text.sql` applied and
+`GRANT SELECT ON items, pages, wine_entries TO "pgfarm-public"` run by an
+admin.
+
 ## Tech Stack
 
 - **Backend:** Node 20, Express, node-postgres (`pg`)

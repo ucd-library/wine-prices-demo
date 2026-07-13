@@ -11,3 +11,6 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY . .
 COPY --from=builder /app/client/dist ./client/dist
+
+# Default to the API server; compose services override for harvester/extractor
+CMD ["node", "services/api/index.js"]
